@@ -1,0 +1,190 @@
+# Statistics related inputs
+input LeaderboardCmd {
+  type: LeaderboardType!
+  categoryId: TSID
+  gameMode: GameMode
+  timeRange: TimeRange
+  limit: Int
+  offset: Int
+}
+
+input UserStatsCmd {
+  userId: TSID!
+  categoryId: TSID
+  gameMode: GameMode
+  timeRange: TimeRange
+}
+
+# Statistics related enums
+enum LeaderboardType {
+  OVERALL_SCORE
+  CATEGORY_SCORE
+  ACCURACY_RATE
+  GAMES_WON
+  FASTEST_COMPLETION
+  WEEKLY_TOP
+  MONTHLY_TOP
+  DAILY_TOP
+}
+
+enum TimeRange {
+  ALL_TIME
+  TODAY
+  THIS_WEEK
+  THIS_MONTH
+  THIS_YEAR
+  LAST_7_DAYS
+  LAST_30_DAYS
+}
+
+# Statistics related types
+type UserStats {
+  userId: TSID!
+  user: User!
+  totalGames: Int!
+  completedGames: Int!
+  abandonedGames: Int!
+  totalScore: Long!
+  averageScore: Float!
+  totalCorrectAnswers: Int!
+  totalIncorrectAnswers: Int!
+  accuracyRate: Float!
+  averageTimePerQuestion: Float!
+  fastestGameTime: Long
+  slowestGameTime: Long
+  favoriteCategory: Category
+  categoryStats: [CategoryUserStats!]!
+  gameModeStats: [GameModeStats!]!
+  difficultyStats: [DifficultyStats!]!
+  recentAchievements: [Achievement!]!
+  rank: Int
+  createdAt: LocalDateTime!
+  updatedAt: LocalDateTime!
+}
+
+type CategoryUserStats {
+  categoryId: TSID!
+  category: Category!
+  gamesPlayed: Int!
+  totalScore: Long!
+  averageScore: Float!
+  correctAnswers: Int!
+  incorrectAnswers: Int!
+  accuracyRate: Float!
+  bestScore: Int!
+  averageTimePerQuestion: Float!
+}
+
+type GameModeStats {
+  gameMode: GameMode!
+  gamesPlayed: Int!
+  gamesWon: Int!
+  totalScore: Long!
+  averageScore: Float!
+  winRate: Float!
+  bestScore: Int!
+}
+
+type DifficultyStats {
+  difficulty: Difficulty!
+  questionsAnswered: Int!
+  correctAnswers: Int!
+  incorrectAnswers: Int!
+  accuracyRate: Float!
+  averageTimePerQuestion: Float!
+}
+
+type LeaderboardEntry {
+  rank: Int!
+  userId: TSID!
+  user: User!
+  score: Long!
+  value: Float!
+  gamesPlayed: Int!
+  metadata: String
+  achievedAt: LocalDateTime!
+}
+
+type Leaderboard {
+  type: LeaderboardType!
+  timeRange: TimeRange!
+  categoryId: TSID
+  category: Category
+  gameMode: GameMode
+  totalEntries: Int!
+  entries: [LeaderboardEntry!]!
+  userEntry: LeaderboardEntry
+  generatedAt: LocalDateTime!
+}
+
+type Achievement {
+  id: TSID!
+  userId: TSID!
+  type: AchievementType!
+  name: String!
+  description: String!
+  iconUrl: String
+  points: Int!
+  unlockedAt: LocalDateTime!
+  categoryId: TSID
+  category: Category
+}
+
+enum AchievementType {
+  FIRST_GAME
+  PERFECT_SCORE
+  SPEED_DEMON
+  CATEGORY_MASTER
+  STREAK_CHAMPION
+  ACCURACY_ACE
+  GAME_COUNT_MILESTONE
+  SCORE_MILESTONE
+}
+
+type GlobalStats {
+  totalUsers: Int!
+  totalGames: Int!
+  totalQuestions: Int!
+  totalCategories: Int!
+  averageScorePerGame: Float!
+  mostPopularCategory: Category
+  mostActiveDifficulty: Difficulty!
+  mostPlayedGameMode: GameMode!
+  generatedAt: LocalDateTime!
+}
+
+# Statistics queries
+extend type Query {
+  getUserStats(command: UserStatsCmd!): UserStats
+  getMyStats(categoryId: TSID, gameMode: GameMode, timeRange: TimeRange): UserStats!
+  
+  getLeaderboard(command: LeaderboardCmd!): Leaderboard!
+  getLeaderboards(types: [LeaderboardType!]!, timeRange: TimeRange, limit: Int): [Leaderboard!]!
+  
+  getGlobalStats: GlobalStats!
+  getUserAchievements(userId: TSID!): [Achievement!]!
+  getMyAchievements: [Achievement!]!
+  
+  compareStats(userId1: TSID!, userId2: TSID!, categoryId: TSID, gameMode: GameMode): StatsComparison!
+}
+
+type StatsComparison {
+  user1: UserStats!
+  user2: UserStats!
+  winner: ComparisonResult!
+  metrics: [MetricComparison!]!
+}
+
+type ComparisonResult {
+  userId: TSID!
+  user: User!
+  totalWins: Int!
+}
+
+type MetricComparison {
+  metric: String!
+  user1Value: Float!
+  user2Value: Float!
+  winner: TSID!
+  difference: Float!
+}

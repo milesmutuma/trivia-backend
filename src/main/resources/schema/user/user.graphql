@@ -1,0 +1,63 @@
+input CreateUserCmd {
+  email: String!
+  displayName: String!
+  password: String!
+}
+
+input LoginCmd {
+  email: String!
+  password: String!
+}
+
+input ChangePasswordCmd {
+  oldPassword: String!
+  newPassword: String!
+}
+
+input ForgotPasswordCmd {
+  email: String!
+}
+
+input ResetPasswordCmd {
+  token: String!
+  newPassword: String!
+}
+
+enum Role {
+  ROLE_ADMIN
+  ROLE_USER
+}
+
+type User {
+  id: TSID
+  email: String
+  displayName: String
+  phoneNumber: String
+  role: Role
+}
+
+type LoggedInUser {
+  users: User
+  token: String
+}
+
+"Deprecated: use ApiResponse"
+type LoggedInUserResponse {
+  status: Int
+  message: String
+  data: [LoggedInUser]
+}
+
+"Deprecated: use ApiResponse"
+type ChangePasswordResponse {
+  status: Int
+  message: String
+}
+
+extend type Mutation {
+  createUser(command: CreateUserCmd): ApiResponse
+  loginUser(command: LoginCmd): ApiResponse
+  changePassword(command: ChangePasswordCmd): ApiResponse
+  forgotPassword(command: ForgotPasswordCmd): ApiResponse
+  resetPassword(command: ResetPasswordCmd): ApiResponse
+}

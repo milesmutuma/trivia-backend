@@ -1,0 +1,134 @@
+# Game related inputs
+input CreateGameCmd {
+  mode: GameMode!
+  categoryIds: [TSID!]
+  difficulty: Difficulty
+  questionCount: Int
+  maxPlayers: Int
+  isPrivate: Boolean
+}
+
+input StartGameCmd {
+  gameId: TSID!
+}
+
+input JoinGameCmd {
+  gameId: TSID
+  inviteCode: String
+}
+
+input SubmitAnswerCmd {
+  gameId: TSID!
+  questionId: TSID!
+  selectedAnswer: String!
+  timeSpent: Int!
+}
+
+input EndGameCmd {
+  gameId: TSID!
+  reason: String
+}
+
+# Game related enums
+enum GameMode {
+  SINGLE_PLAYER
+  MULTIPLAYER
+  PRACTICE
+  TOURNAMENT
+}
+
+enum GameStatus {
+  WAITING
+  ACTIVE
+  COMPLETED
+  ABANDONED
+  PAUSED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+  MIXED
+}
+
+# Game related types
+type Game {
+  id: TSID!
+  userId: TSID!
+  mode: GameMode!
+  status: GameStatus!
+  difficulty: Difficulty
+  categoryIds: [TSID!]
+  totalQuestions: Int!
+  currentQuestionIndex: Int!
+  score: Int!
+  correctAnswers: Int!
+  incorrectAnswers: Int!
+  timeSpent: Long!
+  maxPlayers: Int!
+  currentPlayers: Int!
+  inviteCode: String
+  createdAt: LocalDateTime!
+  startedAt: LocalDateTime
+  endedAt: LocalDateTime
+  questions: [GameQuestion!]
+  currentQuestion: GameQuestion
+}
+
+type GameLobby {
+  game: Game!
+  players: [GamePlayer!]!
+  canStart: Boolean!
+  allPlayersReady: Boolean!
+}
+
+type GamePlayer {
+  id: TSID!
+  gameId: TSID!
+  userId: TSID!
+  username: String!
+  isHost: Boolean!
+  isReady: Boolean!
+  joinedAt: LocalDateTime!
+}
+
+type GameQuestion {
+  id: TSID!
+  gameId: TSID!
+  question: Question!
+  selectedAnswer: String
+  correctAnswer: String!
+  isCorrect: Boolean
+  timeSpent: Int
+  answeredAt: LocalDateTime
+  pointsAwarded: Int!
+}
+
+type ActiveGameStatus {
+  hasActiveGame: Boolean!
+  activeGame: Game
+}
+
+# Game queries
+extend type Query {
+  getActiveGame: Game
+  getActiveGameStatus: ActiveGameStatus!
+  getGame(gameId: TSID!): Game
+  getGameLobby(gameId: TSID!): GameLobby
+  getOpenGames(mode: GameMode, limit: Int): [Game!]!
+  getGameHistory(userId: TSID, limit: Int, offset: Int): [Game!]!
+  getMyGameHistory(limit: Int, offset: Int): [Game!]!
+  getGamesByMode(mode: GameMode!, limit: Int, offset: Int): [Game!]!
+}
+
+# Game mutations
+extend type Mutation {
+  createGame(command: CreateGameCmd!): ApiResponse
+  startGame(command: StartGameCmd!): ApiResponse
+  joinGame(command: JoinGameCmd!): ApiResponse
+  leaveGame(gameId: TSID!, userId: TSID!): ApiResponse
+  setPlayerReady(gameId: TSID!, userId: TSID!, ready: Boolean!): ApiResponse
+  submitAnswer(command: SubmitAnswerCmd!): ApiResponse
+  endGame(command: EndGameCmd!): ApiResponse
+}

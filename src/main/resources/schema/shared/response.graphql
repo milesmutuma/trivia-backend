@@ -1,0 +1,58 @@
+type ApiResponse {
+  status: Int!
+  message: String
+  code: String
+  data: ApiData
+}
+
+"""
+Union of possible payloads for ApiResponse.data.
+Add new types to this union as the API grows.
+"""
+union ApiData = User | LoggedInUser | Empty | Game | GameLobby | Category | Question | UserStats | Leaderboard | Achievement | ActiveGameStatus | CategoryStats | GlobalStats | StatsComparison | QuestionList | GameList | CategoryList | CategoryStatsList | LeaderboardList | AchievementList | AnswerValidation | GameQuestionResult
+
+type Empty {
+  ok: Boolean!
+}
+
+# List wrapper types for collections
+type QuestionList {
+  questions: [Question!]!
+}
+
+type GameList {
+  games: [Game!]!
+}
+
+type CategoryList {
+  categories: [Category!]!
+}
+
+type CategoryStatsList {
+  categoryStats: [CategoryStats!]!
+}
+
+type LeaderboardList {
+  leaderboards: [Leaderboard!]!
+}
+
+type AchievementList {
+  achievements: [Achievement!]!
+}
+
+# Missing individual types
+type AnswerValidation {
+  isCorrect: Boolean!
+  correctAnswer: String!
+  explanation: String
+  points: Int!
+}
+
+type GameQuestionResult {
+  isCorrect: Boolean!
+  correctAnswer: String!
+  explanation: String
+  pointsAwarded: Int!
+  timeSpent: Int!
+  gameQuestion: GameQuestion!
+}

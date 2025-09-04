@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: trivia-crave-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5432/triviacrave
+    username: triviacrave
+    password: triviacrave
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc.lob.non_contextual_creation: true
+    open-in-view: false
+  flyway:
+    enabled: true
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:maratracker@gmail.com}
+    password: ${MAIL_PASSWORD:rhzv ybkb hqsi givo}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+server:
+  port: 8064
+
+security:
+  jwt:
+    secret: myawesomesecret-that-is-definitely-long-enough-for-jwt-security-requirements-and-more
+    expirationMinutes: 120
+
+app:
+  email:
+    enabled: ${EMAIL_ENABLED:true}
+  frontend:
+    url: ${FRONTEND_URL:http://localhost:3000}
+  name: ${APP_NAME:TriviaCrave}
+
+logging:
+  level:
+    org.springframework.security: INFO
+    com.mabawa.triviacrave: DEBUG

@@ -1,0 +1,11 @@
+# Root Query type - extended by other schema files
+type Query {
+  # Health check query
+  health: String!
+}
+
+# Root Mutation type - extended by other schema files  
+type Mutation {
+  # Placeholder - actual mutations defined in domain-specific schema files
+  _placeholder: String
+}

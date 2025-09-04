@@ -1,0 +1,66 @@
+# Question related inputs
+input CreateQuestionCmd {
+  categoryId: TSID!
+  questionText: String!
+  correctAnswer: String!
+  wrongAnswers: [String!]!
+  difficulty: Difficulty!
+  explanation: String
+  timeLimit: Int
+  points: Int!
+}
+
+input UpdateQuestionCmd {
+  id: TSID!
+  categoryId: TSID
+  questionText: String
+  correctAnswer: String
+  wrongAnswers: [String!]
+  difficulty: Difficulty
+  explanation: String
+  timeLimit: Int
+  points: Int
+  isActive: Boolean
+}
+
+input QuestionFilterCmd {
+  categoryId: TSID
+  difficulty: Difficulty
+  isActive: Boolean
+  searchTerm: String
+}
+
+# Question related types
+type Question {
+  id: TSID!
+  categoryId: TSID!
+  category: Category!
+  questionText: String!
+  correctAnswer: String!
+  wrongAnswers: [String!]!
+  allAnswers: [String!]!
+  difficulty: Difficulty!
+  explanation: String
+  timeLimit: Int
+  points: Int!
+  isActive: Boolean!
+  createdAt: LocalDateTime!
+  updatedAt: LocalDateTime!
+  createdBy: TSID!
+}
+
+# Question queries
+extend type Query {
+  getQuestions(filter: QuestionFilterCmd, limit: Int, offset: Int): [Question!]!
+  getQuestion(id: TSID!): Question
+  getQuestionsByCategory(categoryId: TSID!, difficulty: Difficulty, limit: Int, offset: Int): [Question!]!
+  getRandomQuestions(categoryIds: [TSID!], difficulty: Difficulty, count: Int!): [Question!]!
+}
+
+# Question mutations (Admin operations)
+extend type Mutation {
+  createQuestion(command: CreateQuestionCmd!): ApiResponse
+  updateQuestion(command: UpdateQuestionCmd!): ApiResponse
+  deleteQuestion(id: TSID!): ApiResponse
+  toggleQuestionStatus(id: TSID!): ApiResponse
+}

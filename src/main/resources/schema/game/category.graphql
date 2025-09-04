@@ -1,0 +1,54 @@
+# Category related inputs
+input CreateCategoryCmd {
+  name: String!
+  description: String
+  isActive: Boolean!
+}
+
+input UpdateCategoryCmd {
+  id: TSID!
+  name: String
+  description: String
+  isActive: Boolean
+}
+
+# Category related types
+type Category {
+  id: TSID!
+  name: String!
+  description: String
+  isActive: Boolean!
+  questionCount: Int!
+  createdAt: LocalDateTime!
+  updatedAt: LocalDateTime!
+  questions: [Question!]
+}
+
+type CategoryStats {
+  categoryId: TSID!
+  category: Category!
+  totalQuestions: Int!
+  activeQuestions: Int!
+  averageDifficulty: Float!
+  questionsPerDifficulty: [DifficultyCount!]!
+}
+
+type DifficultyCount {
+  difficulty: Difficulty!
+  count: Int!
+}
+
+# Category queries
+extend type Query {
+  getCategories(activeOnly: Boolean): [Category!]!
+  getCategory(id: TSID!): Category
+  getCategoryStats(categoryId: TSID): CategoryStats
+  getAllCategoryStats: [CategoryStats!]!
+}
+
+# Category mutations (Admin operations)
+extend type Mutation {
+  createCategory(command: CreateCategoryCmd!): ApiResponse
+  updateCategory(command: UpdateCategoryCmd!): ApiResponse
+  deleteCategory(id: TSID!): ApiResponse
+}

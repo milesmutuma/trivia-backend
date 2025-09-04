@@ -1,0 +1,3 @@
+scalar TSID
+scalar Long
+scalar LocalDateTime
