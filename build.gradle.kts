@@ -37,8 +37,9 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql:$flywayPostgresVersion")
     runtimeOnly("org.postgresql:postgresql")
 
-    // Redis (future)
+    // Redis
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.springframework.boot:spring-boot-starter-cache")
 
     // Email
     implementation("org.springframework.boot:spring-boot-starter-mail")

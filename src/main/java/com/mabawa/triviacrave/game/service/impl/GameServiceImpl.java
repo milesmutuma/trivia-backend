@@ -11,11 +11,16 @@ import com.mabawa.triviacrave.game.service.CategoryService;
 import com.mabawa.triviacrave.game.service.GameService;
 import com.mabawa.triviacrave.game.service.QuestionService;
 import com.mabawa.triviacrave.game.service.ScoreService;
+import com.mabawa.triviacrave.game.service.redis.RedisLeaderboardService;
 import com.mabawa.triviacrave.generated.graphql.types.*;
 import com.mabawa.triviacrave.user.entity.User;
 import com.mabawa.triviacrave.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +41,16 @@ public class GameServiceImpl implements GameService {
     private final CategoryService categoryService;
     private final QuestionService questionService;
     private final ScoreService scoreService;
+    private final RedisLeaderboardService redisLeaderboardService;
+    
+    // Self-injection for accessing proxy methods to handle @Transactional properly
+    private GameService self;
+    
+    @Autowired
+    @Lazy
+    public void setSelf(GameService self) {
+        this.self = self;
+    }
 
     @Override
     @Transactional
@@ -93,7 +108,7 @@ public class GameServiceImpl implements GameService {
 
             // Single player games start immediately
             if (game.getMaxPlayers() == 1) {
-                return startGameInternal(game);
+                return self.startGameInternal(game);
             }
 
             return ApiResponse.newBuilder()
@@ -259,6 +274,7 @@ public class GameServiceImpl implements GameService {
     }
 
 
+    @Override
     @Transactional
     public ApiResponse submitAnswerApiResponse(SubmitAnswerCmd cmd, Long userId) {
         try {
@@ -350,6 +366,7 @@ public class GameServiceImpl implements GameService {
         }
     }
 
+    @Override
     @Transactional
     public ApiResponse endGameApiResponse(EndGameCmd cmd, Long userId) {
         try {
@@ -722,6 +739,14 @@ public class GameServiceImpl implements GameService {
     private void completeGame(com.mabawa.triviacrave.game.entity.Game game) {
         game.completeGame();
         gameRepository.save(game);
+        
+        // Update Redis leaderboards with final score
+        try {
+            redisLeaderboardService.addScore(game.getUser().getId().toString(), game.getScore());
+            log.debug("Updated leaderboards for user {} with score {}", game.getUser().getId(), game.getScore());
+        } catch (Exception e) {
+            log.error("Failed to update leaderboards for user {}: {}", game.getUser().getId(), e.getMessage(), e);
+        }
     }
 
     private com.mabawa.triviacrave.generated.graphql.types.GameQuestion getNextQuestion(com.mabawa.triviacrave.game.entity.Game game) {
@@ -865,7 +890,7 @@ public class GameServiceImpl implements GameService {
                 }
             }
 
-            return startGameInternal(game);
+            return self.startGameInternal(game);
 
         } catch (IllegalArgumentException e) {
             log.warn("Invalid input for start game: {}", e.getMessage());
@@ -880,14 +905,14 @@ public class GameServiceImpl implements GameService {
     public ApiResponse submitAnswer(SubmitAnswerCmd cmd) {
         // Get current user from security context
         Long userId = getCurrentUserId();
-        return submitAnswerApiResponse(cmd, userId);
+        return self.submitAnswerApiResponse(cmd, userId);
     }
     
     @Override
     public ApiResponse endGame(EndGameCmd cmd) {
         // Get current user from security context
         Long userId = getCurrentUserId();
-        return endGameApiResponse(cmd, userId);
+        return self.endGameApiResponse(cmd, userId);
     }
     
     @Override
@@ -1121,7 +1146,9 @@ public class GameServiceImpl implements GameService {
         return code.toString();
     }
 
-    private ApiResponse startGameInternal(Game game) {
+    @Override
+    @Transactional
+    public ApiResponse startGameInternal(Game game) {
         try {
             // Start the game
             game.startGame();

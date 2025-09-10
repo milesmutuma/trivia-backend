@@ -17,6 +17,11 @@ public interface GameService {
     ApiResponse resumeGame(Long gameId, Long userId);
     ApiResponse abandonGame(Long gameId, Long userId);
     
+    // Internal transactional methods - exposed for proxy access
+    ApiResponse startGameInternal(com.mabawa.triviacrave.game.entity.Game game);
+    ApiResponse submitAnswerApiResponse(SubmitAnswerCmd cmd, Long userId);
+    ApiResponse endGameApiResponse(EndGameCmd cmd, Long userId);
+    
     // Query methods - return direct types for GraphQL queries
     Game getActiveGame(); // Uses authenticated user from security context
     ActiveGameStatus getActiveGameStatus(); // Uses authenticated user from security context

@@ -9,6 +9,8 @@ import com.mabawa.triviacrave.game.service.QuestionService;
 import com.mabawa.triviacrave.generated.graphql.types.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,7 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "questions", allEntries = true)
     public ApiResponse createQuestion(CreateQuestionCmd cmd) {
         try {
             // Validate input
@@ -86,6 +89,7 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "questions", allEntries = true)
     public ApiResponse updateQuestion(UpdateQuestionCmd cmd) {
         try {
             if (cmd.getId() <= 0) {
@@ -163,6 +167,7 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "questions", allEntries = true)
     public ApiResponse deleteQuestion(Long questionId) {
         try {
             if (questionId == null) {
@@ -204,6 +209,7 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "questions", allEntries = true)
     public ApiResponse toggleQuestionStatus(Long questionId) {
         try {
             if (questionId == null) {
@@ -346,6 +352,7 @@ public class QuestionServiceImpl implements QuestionService {
     // Interface methods that return direct types for GraphQL queries
     
     @Override
+    @Cacheable(value = "questions", key = "'filter:' + (#filter != null ? #filter.toString() : 'all') + ':' + (#limit != null ? #limit : 'nolimit') + ':' + (#offset != null ? #offset : '0')")
     public java.util.List<com.mabawa.triviacrave.generated.graphql.types.Question> getQuestions(QuestionFilterCmd filter, Integer limit, Integer offset) {
         List<Question> questions = questionRepository.findAll();
         
@@ -411,6 +418,7 @@ public class QuestionServiceImpl implements QuestionService {
     }
     
     @Override
+    @Cacheable(value = "questions", key = "'category:' + #categoryId + ':' + (#difficulty != null ? #difficulty : 'all') + ':' + (#limit != null ? #limit : 'nolimit') + ':' + (#offset != null ? #offset : '0')")
     public java.util.List<com.mabawa.triviacrave.generated.graphql.types.Question> getQuestionsByCategory(Long categoryId, Difficulty difficulty, Integer limit, Integer offset) {
         if (categoryId == null || categoryId <= 0) {
             throw new RuntimeException("Category ID is required");

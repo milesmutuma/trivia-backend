@@ -11,6 +11,8 @@ import com.mabawa.triviacrave.user.repository.UserRepository;
 import com.mabawa.triviacrave.user.service.EmailService;
 import com.mabawa.triviacrave.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,6 +34,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
+    @CacheEvict(value = "users", allEntries = true)
     public ApiResponse createUser(CreateUserCmd cmd) {
         userRepository.findByEmail(cmd.getEmail()).ifPresent(u -> {
             throw new IllegalArgumentException("Email already in use");
@@ -168,6 +171,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Cacheable(value = "users", key = "#userId")
     public User getUserById(Long userId) {
         if (userId == null) {
             return null;

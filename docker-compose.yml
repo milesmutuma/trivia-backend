@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: triviacrave-postgres
+    environment:
+      POSTGRES_DB: triviacrave
+      POSTGRES_USER: triviacrave
+      POSTGRES_PASSWORD: triviacrave
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triviacrave"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - triviacrave-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: triviacrave-redis
+    ports:
+      - "6380:6379"  # Match your existing setup
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - triviacrave-network
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  triviacrave-network:
+    driver: bridge

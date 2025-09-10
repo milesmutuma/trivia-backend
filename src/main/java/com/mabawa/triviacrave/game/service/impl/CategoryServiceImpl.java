@@ -8,6 +8,8 @@ import com.mabawa.triviacrave.game.service.CategoryService;
 import com.mabawa.triviacrave.generated.graphql.types.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "categories", allEntries = true)
     public ApiResponse createCategory(CreateCategoryCmd cmd) {
         try {
             // Validate input
@@ -72,6 +75,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "categories", allEntries = true)
     public ApiResponse updateCategory(UpdateCategoryCmd cmd) {
         try {
             if (cmd.getId() <= 0) {
@@ -127,6 +131,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "categories", allEntries = true)
     public ApiResponse deleteCategory(Long categoryId) {
         try {
             if (categoryId == null) {
@@ -168,6 +173,7 @@ public class CategoryServiceImpl implements CategoryService {
         }
     }
 
+    @Cacheable(value = "categories", key = "#activeOnly")
     public ApiResponse getCategoriesApiResponse(boolean activeOnly) {
         try {
             List<Category> categories = categoryRepository.findAllOrderedByName();
@@ -199,6 +205,7 @@ public class CategoryServiceImpl implements CategoryService {
         }
     }
 
+    @Cacheable(value = "categories", key = "'single:' + #categoryId")
     public ApiResponse getCategoryApiResponse(Long categoryId) {
         try {
             if (categoryId == null) {
@@ -338,6 +345,7 @@ public class CategoryServiceImpl implements CategoryService {
     // Interface methods that return direct types for GraphQL queries
     
     @Override
+    @Cacheable(value = "categories", key = "'list:' + (#activeOnly != null ? #activeOnly : 'all')")
     public java.util.List<com.mabawa.triviacrave.generated.graphql.types.Category> getCategories(Boolean activeOnly) {
         List<Category> categories;
         if (activeOnly != null && activeOnly) {
@@ -352,6 +360,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
     
     @Override
+    @Cacheable(value = "categories", key = "'entity:' + #categoryId")
     public com.mabawa.triviacrave.generated.graphql.types.Category getCategory(Long categoryId) {
         if (categoryId <= 0) {
             throw new RuntimeException("Category ID is required");
@@ -389,6 +398,7 @@ public class CategoryServiceImpl implements CategoryService {
     
     // Domain service methods for other services
     @Override
+    @Cacheable(value = "categories", key = "'domain:' + #categoryId")
     public Category getCategoryEntityById(Long categoryId) {
         if (categoryId == null) {
             return null;

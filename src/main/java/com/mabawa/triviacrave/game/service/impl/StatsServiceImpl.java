@@ -25,8 +25,10 @@ import com.mabawa.triviacrave.generated.graphql.types.TimeRange;
 import com.mabawa.triviacrave.generated.graphql.types.UserStatsCmd;
 import com.mabawa.triviacrave.user.entity.User;
 import com.mabawa.triviacrave.user.repository.UserRepository;
+import com.mabawa.triviacrave.game.service.redis.RedisLeaderboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -45,7 +47,9 @@ public class StatsServiceImpl implements StatsService {
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final QuestionRepository questionRepository;
+    private final RedisLeaderboardService redisLeaderboardService;
 
+    @Cacheable(value = "userStats", key = "#cmd.userId != null ? #cmd.userId : 'current'")
     public ApiResponse getUserStatsApiResponse(UserStatsCmd cmd) {
         try {
             validateUserStatsCmd(cmd);
