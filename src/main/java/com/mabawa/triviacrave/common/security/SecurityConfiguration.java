@@ -28,6 +28,8 @@ public class SecurityConfiguration {
                 .requestMatchers("/actuator/**").permitAll()
                 // GraphQL endpoints - security handled at method level via @PreAuthorize
                 .requestMatchers("/graphiql", "/graphql").permitAll()
+                // WebSocket endpoints - authentication handled in WebSocketConfig
+                .requestMatchers("/ws/**").permitAll()
                 // All other requests require authentication (future REST endpoints)
                 .anyRequest().authenticated()
             )

@@ -1,0 +1,216 @@
+# Game Subscription Types for Real-time Updates
+
+# Subscription event types
+enum GameEventType {
+  GAME_STARTED
+  GAME_ENDED
+  QUESTION_CHANGED
+  PLAYER_JOINED
+  PLAYER_LEFT
+  PLAYER_READY_CHANGED
+  ANSWER_SUBMITTED
+  TIMER_WARNING
+  TIMER_EXPIRED
+}
+
+enum GameEndReason {
+  COMPLETED
+  ABANDONED
+  HOST_LEFT
+  TIMEOUT
+  ERROR
+}
+
+# Real-time update types
+type GameStateUpdate {
+  gameId: TSID!
+  status: GameStatus!
+  currentQuestionIndex: Int
+  totalQuestions: Int
+  timestamp: LocalDateTime!
+  eventType: GameEventType!
+  endReason: GameEndReason
+  finalScores: [PlayerScore!]
+  message: String
+}
+
+type LobbyUpdate {
+  gameId: TSID!
+  players: [GamePlayer!]!
+  canStart: Boolean!
+  allPlayersReady: Boolean!
+  playerCount: Int!
+  maxPlayers: Int!
+  timestamp: LocalDateTime!
+  eventType: GameEventType!
+  playerId: TSID  # ID of player who triggered the update
+  playerUsername: String  # Username of player who triggered the update
+}
+
+type LeaderboardUpdate {
+  gameId: TSID!
+  rankings: [LeaderboardEntry!]!
+  timestamp: LocalDateTime!
+  updatedPlayerId: TSID  # Player whose score was updated
+  scoreChange: Int       # Points gained/lost in this update
+}
+
+type TimerUpdate {
+  gameId: TSID!
+  questionIndex: Int!
+  remainingSeconds: Int!
+  totalSeconds: Int!
+  isWarning: Boolean!    # True when time is running low
+  timestamp: LocalDateTime!
+}
+
+type AnswerResult {
+  gameId: TSID!
+  userId: TSID!
+  questionId: TSID!
+  selectedAnswer: String!
+  correctAnswer: String!
+  isCorrect: Boolean!
+  pointsEarned: Int!
+  timeSpent: Int!
+  timestamp: LocalDateTime!
+  totalScore: Int        # Player's total score after this answer
+  rank: Int             # Player's current rank after this answer
+}
+
+type PlayerTimeout {
+  gameId: TSID!
+  userId: TSID!
+  username: String!
+  questionIndex: Int!
+  timestamp: LocalDateTime!
+}
+
+# Supporting types for subscriptions
+type PlayerScore {
+  userId: TSID!
+  username: String!
+  score: Int!
+  rank: Int!
+  correctAnswers: Int!
+  totalAnswers: Int!
+  accuracy: Float!
+}
+
+# LeaderboardEntry is defined in stats.graphql
+# Extended for subscription use if needed
+extend type LeaderboardEntry {
+  isCurrentUser: Boolean
+}
+
+type QuestionProgress {
+  gameId: TSID!
+  questionIndex: Int!
+  totalQuestions: Int!
+  playersAnswered: Int!
+  totalPlayers: Int!
+  timeRemaining: Int!
+  question: Question
+}
+
+# Connection management types
+type ConnectionStatus {
+  isConnected: Boolean!
+  gameId: TSID
+  userId: TSID!
+  connectionTime: LocalDateTime!
+  lastPing: LocalDateTime
+}
+
+# Error types for subscriptions
+type SubscriptionError {
+  code: String!
+  message: String!
+  gameId: TSID
+  userId: TSID
+  timestamp: LocalDateTime!
+}
+
+# Input types for subscription filtering
+input GameSubscriptionFilter {
+  gameId: TSID!
+  userId: TSID
+  eventTypes: [GameEventType!]
+}
+
+input LobbySubscriptionFilter {
+  gameId: TSID!
+  includePlayerDetails: Boolean = true
+}
+
+input LeaderboardSubscriptionFilter {
+  gameId: TSID!
+  topPlayersOnly: Boolean = false
+  includeCurrentUser: Boolean = true
+}
+
+input TimerSubscriptionFilter {
+  gameId: TSID!
+  warningThreshold: Int = 10  # Seconds threshold for warnings
+}
+
+# Subscription definitions
+extend type Subscription {
+  # Game state changes (start, end, question progression)
+  gameStateUpdates(filter: GameSubscriptionFilter!): GameStateUpdate!
+  
+  # Lobby updates (player join/leave, ready status)
+  lobbyUpdates(filter: LobbySubscriptionFilter!): LobbyUpdate!
+  
+  # Live leaderboard changes during gameplay
+  leaderboardUpdates(filter: LeaderboardSubscriptionFilter!): LeaderboardUpdate!
+  
+  # Question timer countdown
+  timerUpdates(filter: TimerSubscriptionFilter!): TimerUpdate!
+  
+  # Answer submissions and results
+  answerResults(gameId: TSID!): AnswerResult!
+  
+  # Player timeouts when they don't answer in time
+  playerTimeouts(gameId: TSID!): PlayerTimeout!
+  
+  # Connection status monitoring
+  connectionStatus(gameId: TSID!): ConnectionStatus!
+  
+  # Error notifications
+  subscriptionErrors(gameId: TSID!): SubscriptionError!
+  
+  # Combined game events (all-in-one subscription)
+  gameEvents(gameId: TSID!, eventTypes: [GameEventType!]): GameEvent!
+}
+
+# Union type for combined game events
+union GameEvent = GameStateUpdate | LobbyUpdate | LeaderboardUpdate | TimerUpdate | AnswerResult | PlayerTimeout
+
+# Subscription metadata
+type SubscriptionInfo {
+  totalSubscribers: Int!
+  gameSubscribers: Int!
+  lobbySubscribers: Int!
+  leaderboardSubscribers: Int!
+  timerSubscribers: Int!
+  timestamp: LocalDateTime!
+}
+
+# Administrative queries for subscription monitoring
+extend type Query {
+  getSubscriptionInfo(gameId: TSID!): SubscriptionInfo!
+  getActiveConnections(gameId: TSID!): [ConnectionStatus!]!
+}
+
+# Administrative mutations for subscription management
+extend type Mutation {
+  # Force disconnect a user from game subscriptions
+  disconnectUserFromGame(gameId: TSID!, userId: TSID!): Boolean!
+  
+  # Send a custom message to all game subscribers
+  broadcastGameMessage(gameId: TSID!, message: String!, eventType: GameEventType!): Boolean!
+  
+  # Restart game timers (admin function)
+  restartGameTimer(gameId: TSID!, questionIndex: Int!, durationSeconds: Int!): Boolean!
+}

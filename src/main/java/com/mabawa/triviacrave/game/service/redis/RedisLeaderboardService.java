@@ -6,6 +6,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.WeekFields;
@@ -25,6 +26,7 @@ public class RedisLeaderboardService {
     private static final String WEEKLY_LEADERBOARD_PREFIX = "leaderboard:weekly:";
     private static final String MONTHLY_LEADERBOARD_PREFIX = "leaderboard:monthly:";
     private static final String ALL_TIME_LEADERBOARD = "leaderboard:alltime";
+    private static final String PRIVATE_GAME_LEADERBOARD_PREFIX = "game:private:";
     
     /**
      * Add or update a player's score in all relevant leaderboards
@@ -185,6 +187,63 @@ public class RedisLeaderboardService {
             case "alltime" -> ALL_TIME_LEADERBOARD;
             default -> throw new IllegalArgumentException("Invalid leaderboard type: " + leaderboardType);
         };
+    }
+    
+    /**
+     * Add score to private game leaderboard (does not affect global rankings)
+     */
+    public void addPrivateGameScore(Long gameId, String userId, double score) {
+        try {
+            String privateKey = getPrivateGameLeaderboardKey(gameId);
+            stringRedisTemplate.opsForZSet().incrementScore(privateKey, userId, score);
+            
+            // Set expiry for private game leaderboard (24 hours after last update)
+            stringRedisTemplate.expire(privateKey, Duration.ofHours(24));
+            
+            log.debug("Added score {} for user {} to private game {} leaderboard", score, userId, gameId);
+            
+        } catch (Exception e) {
+            log.error("Error adding score to private game leaderboard: gameId={}, userId={}, error={}", 
+                     gameId, userId, e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Get rankings for a private game
+     */
+    public List<LeaderboardEntry> getPrivateGameRankings(Long gameId, int limit) {
+        return getTopPlayersFromKey(getPrivateGameLeaderboardKey(gameId), limit);
+    }
+    
+    /**
+     * Get user's rank in a private game (0-based)
+     */
+    public Long getUserRankInPrivateGame(Long gameId, String userId) {
+        return stringRedisTemplate.opsForZSet().reverseRank(getPrivateGameLeaderboardKey(gameId), userId);
+    }
+    
+    /**
+     * Get user's score in a private game
+     */
+    public Double getUserScoreInPrivateGame(Long gameId, String userId) {
+        return stringRedisTemplate.opsForZSet().score(getPrivateGameLeaderboardKey(gameId), userId);
+    }
+    
+    /**
+     * Clear private game leaderboard (called when game ends)
+     */
+    public void clearPrivateGameLeaderboard(Long gameId) {
+        try {
+            String privateKey = getPrivateGameLeaderboardKey(gameId);
+            stringRedisTemplate.delete(privateKey);
+            log.debug("Cleared private game leaderboard for game {}", gameId);
+        } catch (Exception e) {
+            log.error("Error clearing private game leaderboard for game {}: {}", gameId, e.getMessage(), e);
+        }
+    }
+    
+    private String getPrivateGameLeaderboardKey(Long gameId) {
+        return PRIVATE_GAME_LEADERBOARD_PREFIX + gameId;
     }
     
     /**

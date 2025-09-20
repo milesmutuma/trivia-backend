@@ -17,5 +17,6 @@ public interface UserService {
     
     // Domain service methods for other services
     User getUserById(Long userId);
+    User getUserByEmail(String email);
     boolean userExists(Long userId);
 }

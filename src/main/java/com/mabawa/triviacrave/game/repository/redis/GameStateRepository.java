@@ -3,7 +3,9 @@ package com.mabawa.triviacrave.game.repository.redis;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Repository;
@@ -218,7 +220,10 @@ public class GameStateRepository {
     /**
      * Game state data structure for Redis storage
      */
+    @Setter
+    @Getter
     public static class GameState {
+        // Getters and setters
         private Long gameId;
         private String status; // WAITING, IN_PROGRESS, COMPLETED, ABANDONED
         private Integer currentQuestionIndex;
@@ -234,35 +239,7 @@ public class GameStateRepository {
             this.playerScores = new java.util.HashMap<>();
             this.lastActivityTime = java.time.LocalDateTime.now();
         }
-        
-        // Getters and setters
-        public Long getGameId() { return gameId; }
-        public void setGameId(Long gameId) { this.gameId = gameId; }
-        
-        public String getStatus() { return status; }
-        public void setStatus(String status) { this.status = status; }
-        
-        public Integer getCurrentQuestionIndex() { return currentQuestionIndex; }
-        public void setCurrentQuestionIndex(Integer currentQuestionIndex) { this.currentQuestionIndex = currentQuestionIndex; }
-        
-        public Integer getTotalQuestions() { return totalQuestions; }
-        public void setTotalQuestions(Integer totalQuestions) { this.totalQuestions = totalQuestions; }
-        
-        public Long getCurrentQuestionId() { return currentQuestionId; }
-        public void setCurrentQuestionId(Long currentQuestionId) { this.currentQuestionId = currentQuestionId; }
-        
-        public java.time.LocalDateTime getQuestionStartTime() { return questionStartTime; }
-        public void setQuestionStartTime(java.time.LocalDateTime questionStartTime) { this.questionStartTime = questionStartTime; }
-        
-        public java.time.LocalDateTime getGameStartTime() { return gameStartTime; }
-        public void setGameStartTime(java.time.LocalDateTime gameStartTime) { this.gameStartTime = gameStartTime; }
-        
-        public java.time.LocalDateTime getLastActivityTime() { return lastActivityTime; }
-        public void setLastActivityTime(java.time.LocalDateTime lastActivityTime) { this.lastActivityTime = lastActivityTime; }
-        
-        public java.util.Map<String, Integer> getPlayerScores() { return playerScores; }
-        public void setPlayerScores(java.util.Map<String, Integer> playerScores) { this.playerScores = playerScores; }
-        
+
         // Utility methods
         public void updateActivity() {
             this.lastActivityTime = java.time.LocalDateTime.now();

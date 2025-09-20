@@ -24,7 +24,7 @@ class RedisLeaderboardServiceTest {
     static void configureProperties(DynamicPropertyRegistry registry) {
         // Use existing Redis instance
         registry.add("spring.redis.host", () -> "localhost");
-        registry.add("spring.redis.port", () -> "6380");
+        registry.add("spring.redis.port", () -> "6379");
     }
 
     @Test
@@ -33,7 +33,7 @@ class RedisLeaderboardServiceTest {
         String testKey = "leaderboard:daily:" + java.time.LocalDate.now();
         stringRedisTemplate.delete(testKey);
 
-        // Add some test scores
+        // Add some test scoreså
         redisLeaderboardService.addScore("user1", 1000);
         redisLeaderboardService.addScore("user2", 1500);
         redisLeaderboardService.addScore("user3", 800);

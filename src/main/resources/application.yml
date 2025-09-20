@@ -17,7 +17,7 @@ spring:
     enabled: true
   redis:
     host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6380}
+    port: ${REDIS_PORT:6379}
     password: ${REDIS_PASSWORD:}
     timeout: 2000ms
     lettuce:
@@ -29,6 +29,32 @@ spring:
     type: redis
     redis:
       time-to-live: 3600000  # 1 hour default TTL
+  # WebSocket Configuration
+  websocket:
+    # STOMP message broker settings
+    message-broker:
+      # Use in-memory broker for development
+      # In production, consider using external brokers like RabbitMQ or ActiveMQ
+      relay-host: ${WEBSOCKET_RELAY_HOST:}
+      relay-port: ${WEBSOCKET_RELAY_PORT:61613}
+      client-login: ${WEBSOCKET_CLIENT_LOGIN:guest}
+      client-passcode: ${WEBSOCKET_CLIENT_PASSCODE:guest}
+      system-login: ${WEBSOCKET_SYSTEM_LOGIN:guest}
+      system-passcode: ${WEBSOCKET_SYSTEM_PASSCODE:guest}
+    # Connection settings
+    connection:
+      # Maximum number of concurrent WebSocket connections
+      max-sessions: ${WEBSOCKET_MAX_SESSIONS:1000}
+      # Connection timeout in seconds
+      timeout: ${WEBSOCKET_TIMEOUT:30}
+      # Heart-beat settings for connection health monitoring
+      heartbeat-time: ${WEBSOCKET_HEARTBEAT:25000}
+    # Security settings
+    security:
+      # Enable CSRF protection for WebSocket connections
+      csrf-disabled: true
+      # Origins allowed to connect (configured via CORS)
+      allowed-origins: ${WEBSOCKET_ALLOWED_ORIGINS:*}
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}

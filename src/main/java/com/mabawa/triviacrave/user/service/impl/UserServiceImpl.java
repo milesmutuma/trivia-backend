@@ -180,6 +180,15 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Cacheable(value = "users", key = "#email")
+    public User getUserByEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return null;
+        }
+        return userRepository.findByEmail(email).orElse(null);
+    }
+
+    @Override
     public boolean userExists(Long userId) {
         if (userId == null) {
             return false;

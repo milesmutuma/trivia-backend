@@ -9,17 +9,18 @@ import com.mabawa.triviacrave.game.entity.Question;
 import com.mabawa.triviacrave.game.repository.*;
 import com.mabawa.triviacrave.game.service.CategoryService;
 import com.mabawa.triviacrave.game.service.GameService;
+import com.mabawa.triviacrave.game.service.LiveGameOrchestrator;
 import com.mabawa.triviacrave.game.service.QuestionService;
 import com.mabawa.triviacrave.game.service.ScoreService;
 import com.mabawa.triviacrave.game.service.redis.RedisLeaderboardService;
+import com.mabawa.triviacrave.game.repository.redis.GameStateRepository;
+import com.mabawa.triviacrave.generated.graphql.types.GameEndReason;
 import com.mabawa.triviacrave.generated.graphql.types.*;
 import com.mabawa.triviacrave.user.entity.User;
 import com.mabawa.triviacrave.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 @Slf4j
@@ -42,6 +44,8 @@ public class GameServiceImpl implements GameService {
     private final QuestionService questionService;
     private final ScoreService scoreService;
     private final RedisLeaderboardService redisLeaderboardService;
+    private final GameStateRepository gameStateRepository;
+    private final LiveGameOrchestrator liveGameOrchestrator;
     
     // Self-injection for accessing proxy methods to handle @Transactional properly
     private GameService self;
@@ -51,6 +55,7 @@ public class GameServiceImpl implements GameService {
     public void setSelf(GameService self) {
         this.self = self;
     }
+    
 
     @Override
     @Transactional
@@ -81,7 +86,7 @@ public class GameServiceImpl implements GameService {
 
             // Set category
             if (cmd.getCategoryIds() != null && !cmd.getCategoryIds().isEmpty()) {
-                com.mabawa.triviacrave.game.entity.Category category = categoryService.getCategoryEntityById(cmd.getCategoryIds().get(0));
+                com.mabawa.triviacrave.game.entity.Category category = categoryService.getCategoryEntityById(cmd.getCategoryIds().getFirst());
                 if (category != null) {
                     game.setCategory(category);
                 }
@@ -94,6 +99,9 @@ public class GameServiceImpl implements GameService {
 
             gameRepository.save(game);
 
+            // Initialize Redis game state and lobby for multiplayer games
+            initializeRedisGameState(game, userId);
+
             // Create host game player
             Long gamePlayerId = IDGenerator.generateId();
             GamePlayer hostPlayer = GamePlayer.builder()
@@ -105,10 +113,27 @@ public class GameServiceImpl implements GameService {
                     .joinedAt(LocalDateTime.now())
                     .build();
             gamePlayerRepository.save(hostPlayer);
+            
+            // Set host as ready in Redis for multiplayer games
+            updatePlayerReadyStatusInRedis(game, userId, hostPlayer.getIsReady());
 
             // Single player games start immediately
             if (game.getMaxPlayers() == 1) {
                 return self.startGameInternal(game);
+            }
+
+            // For multiplayer games, notify that game was created (for lobby discovery)
+            try {
+                liveGameOrchestrator.handleRealtimeEvent(
+                    game.getId(), 
+                    "game.created", 
+                    mapToGraphQLGame(game)
+                );
+                log.debug("LiveGameOrchestrator handled game creation: gameId={}", game.getId());
+            } catch (Exception e) {
+                log.warn("Failed to handle game creation via LiveGameOrchestrator: gameId={}, error={}", 
+                        game.getId(), e.getMessage());
+                // Continue without failing the game creation
             }
 
             return ApiResponse.newBuilder()
@@ -170,6 +195,21 @@ public class GameServiceImpl implements GameService {
 
             game.addPlayer();
             gameRepository.save(game);
+            
+            // Add player to Redis lobby
+            addPlayerToRedisLobby(game.getId(), userId);
+
+            // Send WebSocket notification to all players in the game
+            try {
+                liveGameOrchestrator.handlePlayerJoined(game, player);
+                log.debug("LiveGameOrchestrator handled player join: gameId={}, userId={}", game.getId(), userId);
+            } catch (Exception e) {
+                log.warn("Failed to handle player join via LiveGameOrchestrator: gameId={}, userId={}, error={}", 
+                        game.getId(), userId, e.getMessage());
+                // Continue without failing the join operation
+            }
+
+            log.debug("Player joined event logged: gameId={}, userId={}", game.getId(), userId);
 
             return ApiResponse.newBuilder()
                     .status(200)
@@ -205,8 +245,21 @@ public class GameServiceImpl implements GameService {
 
             game.removePlayer();
             
+            // Remove player from Redis lobby and ready set
+            removePlayerFromRedisLobby(game.getId(), userId);
+
+            // Send WebSocket notification to remaining players
+            try {
+                liveGameOrchestrator.handlePlayerLeft(game, player);
+                log.debug("LiveGameOrchestrator handled player leave: gameId={}, userId={}", game.getId(), userId);
+            } catch (Exception e) {
+                log.warn("Failed to handle player leave via LiveGameOrchestrator: gameId={}, userId={}, error={}", 
+                        game.getId(), userId, e.getMessage());
+                // Continue without failing the leave operation
+            }
+            
             // If host leaves, transfer host to another player or abandon game
-            if (player.getIsHost()) {
+            if (Boolean.TRUE.equals(player.getIsHost())) {
                 List<GamePlayer> activePlayers = gamePlayerRepository.findByGameIdAndLeftAtIsNull(gameId);
                 if (!activePlayers.isEmpty()) {
                     GamePlayer newHost = activePlayers.get(0);
@@ -221,6 +274,13 @@ public class GameServiceImpl implements GameService {
             // If no players left, abandon game
             if (game.getCurrentPlayers() == 0) {
                 game.setStatus(Game.GameStatus.ABANDONED);
+                // Clear all Redis data when game is abandoned
+                try {
+                    gameStateRepository.clearAllGameData(game.getId());
+                    log.debug("Cleared all Redis data for abandoned game {}", game.getId());
+                } catch (Exception e) {
+                    log.error("Failed to clear Redis data for abandoned game {}: {}", game.getId(), e.getMessage(), e);
+                }
             }
 
             gameRepository.save(game);
@@ -257,6 +317,30 @@ public class GameServiceImpl implements GameService {
             gamePlayerRepository.save(player);
 
             Game game = gameRepository.findOne(gameId);
+            
+            // Update player ready status in Redis
+            updatePlayerReadyStatusInRedis(game, userId, ready);
+
+            // Send WebSocket notification about player readiness change
+            try {
+                liveGameOrchestrator.handleRealtimeEvent(
+                    gameId, 
+                    "player.readiness.changed", 
+                    Map.of(
+                        "gameId", gameId,
+                        "userId", userId,
+                        "username", player.getUser().getUsername(),
+                        "isReady", ready,
+                        "lobbyUpdate", mapToGraphQLGameLobby(game)
+                    )
+                );
+                log.debug("LiveGameOrchestrator handled player readiness change: gameId={}, userId={}, ready={}", 
+                        gameId, userId, ready);
+            } catch (Exception e) {
+                log.warn("Failed to handle player readiness change via LiveGameOrchestrator: gameId={}, userId={}, error={}", 
+                        gameId, userId, e.getMessage());
+                // Continue without failing the ready status update
+            }
             
             return ApiResponse.newBuilder()
                     .status(200)
@@ -327,6 +411,30 @@ public class GameServiceImpl implements GameService {
             game.answerQuestion(gameQuestion.isAnsweredCorrectly(), totalQuestionScore);
             gameRepository.save(game);
 
+            // Update Redis game state and player score
+            updateRedisGameStateForAnswer(game, userId, totalQuestionScore);
+
+            // Handle real-time answer submission through LiveGameOrchestrator
+            try {
+                liveGameOrchestrator.handleAnswerSubmission(
+                    game.getId(), 
+                    userId, 
+                    cmd.getSelectedAnswer(), 
+                    cmd.getTimeSpent(), 
+                    cmd.getQuestionId()
+                );
+                log.debug("Answer submission handled by LiveGameOrchestrator: gameId={}, userId={}", game.getId(), userId);
+            } catch (Exception e) {
+                log.warn("Failed to handle answer submission via LiveGameOrchestrator: gameId={}, userId={}, error={}", 
+                        game.getId(), userId, e.getMessage());
+                // Continue with fallback WebSocket notification
+            }
+
+            // Note: Answer results are already handled by liveGameOrchestrator.handleAnswerSubmission() above
+            // Removed duplicate WebSocket notification to avoid double messaging
+
+            log.debug("Answer submitted and processed: gameId={}, userId={}", game.getId(), userId);
+
             // Check if game is complete
             boolean gameComplete = isGameComplete(game);
             if (gameComplete) {
@@ -387,32 +495,44 @@ public class GameServiceImpl implements GameService {
                 throw new IllegalArgumentException("Game is already finished");
             }
 
+            // Determine end reason for live game orchestration
+            GameEndReason endReason;
             if (cmd.getReason() != null && cmd.getReason().toLowerCase().contains("abandon")) {
                 game.abandonGame();
+                endReason = GameEndReason.ABANDONED;
             } else {
                 game.completeGame();
+                endReason = GameEndReason.COMPLETED;
             }
 
-            // Calculate final score with completion bonus
-            int completionBonus = scoreService.calculateGameCompletionBonus(
-                    game.getCorrectAnswers(),
-                    game.getGameQuestions().size(),
-                    game.getDurationSeconds() != null ? game.getDurationSeconds() : 0
-            );
+            // End live game orchestration for real-time features
+            try {
+                liveGameOrchestrator.endLiveGame(game.getId(), endReason);
+                log.debug("Live game orchestration ended via endGame API: gameId={}, reason={}", game.getId(), endReason);
+            } catch (Exception e) {
+                log.warn("Failed to end live game orchestration via endGame API: gameId={}, error={}", 
+                        game.getId(), e.getMessage());
+                // Continue with standard game end operation - basic functionality remains intact
+            }
 
-            double accuracyBonus = scoreService.calculateAccuracyBonus(
-                    game.getCorrectAnswers(),
-                    game.getQuestionsAnswered()
-            );
+            // Handle final score calculation based on game type
+            if (game.getMaxPlayers() == 1) {
+                // Single player - calculate final score with completion bonuses
+                calculateSinglePlayerFinalScore(game);
+                gameRepository.save(game);
+                log.debug("Final score calculated for single-player game: gameId={}, finalScore={}", 
+                         game.getId(), game.getScore());
+            } else {
+                // Multiplayer - LiveGameOrchestrator already handles final scores correctly
+                // in liveGameOrchestrator.endLiveGame() called at line 510
+                // Just update game status, don't recalculate scores to avoid conflicts
+                gameRepository.save(game);
+                log.debug("Final scores handled by LiveGameOrchestrator for multiplayer game: gameId={}, maxPlayers={}", 
+                         game.getId(), game.getMaxPlayers());
+            }
 
-            int finalScore = scoreService.calculateFinalGameScore(
-                    game.getScore(),
-                    completionBonus,
-                    accuracyBonus
-            );
-
-            game.setScore(finalScore);
-            gameRepository.save(game);
+            // Note: Game completion is already handled by liveGameOrchestrator.endLiveGame() above
+            // Removed duplicate WebSocket notification to avoid double messaging
 
             return ApiResponse.newBuilder()
                     .status(200)
@@ -614,8 +734,19 @@ public class GameServiceImpl implements GameService {
     public ApiResponse pauseGame(Long gameId, Long userId) {
         try {
             Game game = validateGameOwnership(gameId, userId);
+            Game.GameStatus previousStatus = game.getStatus();
             game.pauseGame();
             gameRepository.save(game);
+
+            // Send WebSocket notification for game state change
+            try {
+                liveGameOrchestrator.handleGameStateChange(game, previousStatus);
+                log.debug("LiveGameOrchestrator handled game pause: gameId={}", gameId);
+            } catch (Exception e) {
+                log.warn("Failed to handle game pause via LiveGameOrchestrator: gameId={}, error={}", 
+                        gameId, e.getMessage());
+                // Continue without failing the pause operation
+            }
 
             return ApiResponse.newBuilder()
                     .status(200)
@@ -634,8 +765,19 @@ public class GameServiceImpl implements GameService {
     public ApiResponse resumeGame(Long gameId, Long userId) {
         try {
             Game game = validateGameOwnership(gameId, userId);
+            Game.GameStatus previousStatus = game.getStatus();
             game.resumeGame();
             gameRepository.save(game);
+
+            // Send WebSocket notification for game state change
+            try {
+                liveGameOrchestrator.handleGameStateChange(game, previousStatus);
+                log.debug("LiveGameOrchestrator handled game resume: gameId={}", gameId);
+            } catch (Exception e) {
+                log.warn("Failed to handle game resume via LiveGameOrchestrator: gameId={}, error={}", 
+                        gameId, e.getMessage());
+                // Continue without failing the resume operation
+            }
 
             return ApiResponse.newBuilder()
                     .status(200)
@@ -654,8 +796,37 @@ public class GameServiceImpl implements GameService {
     public ApiResponse abandonGame(Long gameId, Long userId) {
         try {
             Game game = validateGameOwnership(gameId, userId);
+            Game.GameStatus previousStatus = game.getStatus();
             game.abandonGame();
             gameRepository.save(game);
+
+            // End live game orchestration for real-time features
+            try {
+                liveGameOrchestrator.endLiveGame(gameId, GameEndReason.ABANDONED);
+                log.debug("Live game orchestration ended for abandoned game: gameId={}", gameId);
+            } catch (Exception e) {
+                log.warn("Failed to end live game orchestration for abandoned game: gameId={}, error={}", 
+                        gameId, e.getMessage());
+                // Continue with standard abandon operation - basic functionality remains intact
+            }
+
+            // Send WebSocket notification for game state change
+            try {
+                liveGameOrchestrator.handleGameStateChange(game, previousStatus);
+                log.debug("LiveGameOrchestrator handled game abandon: gameId={}", gameId);
+            } catch (Exception e) {
+                log.warn("Failed to handle game abandon via LiveGameOrchestrator: gameId={}, error={}", 
+                        gameId, e.getMessage());
+                // Continue without failing the abandon operation
+            }
+
+            // Clear Redis data when game is abandoned
+            try {
+                gameStateRepository.clearAllGameData(gameId);
+                log.debug("Cleared Redis data for abandoned game {}", gameId);
+            } catch (Exception e) {
+                log.error("Failed to clear Redis data for abandoned game {}: {}", gameId, e.getMessage(), e);
+            }
 
             return ApiResponse.newBuilder()
                     .status(200)
@@ -740,13 +911,21 @@ public class GameServiceImpl implements GameService {
         game.completeGame();
         gameRepository.save(game);
         
-        // Update Redis leaderboards with final score
+        // End live game orchestration for real-time features
         try {
-            redisLeaderboardService.addScore(game.getUser().getId().toString(), game.getScore());
-            log.debug("Updated leaderboards for user {} with score {}", game.getUser().getId(), game.getScore());
+            liveGameOrchestrator.endLiveGame(game.getId(), GameEndReason.COMPLETED);
+            log.debug("Live game orchestration ended: gameId={}", game.getId());
         } catch (Exception e) {
-            log.error("Failed to update leaderboards for user {}: {}", game.getUser().getId(), e.getMessage(), e);
+            log.warn("Failed to end live game orchestration: gameId={}, error={}", 
+                    game.getId(), e.getMessage());
+            // Continue with standard game completion - basic functionality remains intact
         }
+        
+        // Note: Game completion is already handled by liveGameOrchestrator.endLiveGame() above
+        // Removed duplicate WebSocket notification to avoid double messaging
+        
+        // Update Redis state for game completion and cleanup
+        finalizeGameInRedis(game);
     }
 
     private com.mabawa.triviacrave.generated.graphql.types.GameQuestion getNextQuestion(com.mabawa.triviacrave.game.entity.Game game) {
@@ -759,18 +938,12 @@ public class GameServiceImpl implements GameService {
     }
 
     private com.mabawa.triviacrave.game.entity.Game.GameMode mapToEntityGameMode(GameMode graphqlMode) {
-        switch (graphqlMode) {
-            case SINGLE_PLAYER:
-                return com.mabawa.triviacrave.game.entity.Game.GameMode.QUICK_PLAY;
-            case MULTIPLAYER:
-                return com.mabawa.triviacrave.game.entity.Game.GameMode.TIMED_CHALLENGE;
-            case PRACTICE:
-                return com.mabawa.triviacrave.game.entity.Game.GameMode.CUSTOM;
-            case TOURNAMENT:
-                return com.mabawa.triviacrave.game.entity.Game.GameMode.SURVIVAL;
-            default:
-                return com.mabawa.triviacrave.game.entity.Game.GameMode.QUICK_PLAY;
-        }
+        return switch (graphqlMode) {
+            case MULTIPLAYER -> Game.GameMode.TIMED_CHALLENGE;
+            case PRACTICE -> Game.GameMode.CUSTOM;
+            case TOURNAMENT -> Game.GameMode.SURVIVAL;
+            default -> Game.GameMode.QUICK_PLAY;
+        };
     }
 
     private GameMode mapFromEntityGameMode(com.mabawa.triviacrave.game.entity.Game.GameMode entityMode) {
@@ -789,20 +962,13 @@ public class GameServiceImpl implements GameService {
     }
 
     private GameStatus mapFromEntityGameStatus(com.mabawa.triviacrave.game.entity.Game.GameStatus entityStatus) {
-        switch (entityStatus) {
-            case WAITING:
-                return GameStatus.WAITING;
-            case IN_PROGRESS:
-                return GameStatus.ACTIVE;
-            case COMPLETED:
-                return GameStatus.COMPLETED;
-            case ABANDONED:
-                return GameStatus.ABANDONED;
-            case PAUSED:
-                return GameStatus.PAUSED;
-            default:
-                return GameStatus.ACTIVE;
-        }
+        return switch (entityStatus) {
+            case WAITING -> GameStatus.WAITING;
+            case COMPLETED -> GameStatus.COMPLETED;
+            case ABANDONED -> GameStatus.ABANDONED;
+            case PAUSED -> GameStatus.PAUSED;
+            default -> GameStatus.ACTIVE;
+        };
     }
 
     private com.mabawa.triviacrave.generated.graphql.types.Game mapToGraphQLGame(com.mabawa.triviacrave.game.entity.Game game) {
@@ -1180,6 +1346,24 @@ public class GameServiceImpl implements GameService {
             game.setGameQuestions(gameQuestions);
             gameRepository.save(game);
 
+            // Update Redis game state when game starts
+            initializeRedisGameStateForStart(game, gameQuestions);
+
+            // Start live game orchestration for real-time features
+            try {
+                liveGameOrchestrator.startLiveGame(game.getId());
+                log.debug("Live game orchestration started: gameId={}", game.getId());
+            } catch (Exception e) {
+                log.warn("Failed to start live game orchestration: gameId={}, error={}", 
+                        game.getId(), e.getMessage());
+                // Continue without failing the game start - basic functionality remains intact
+            }
+
+            // Note: Game start is already handled by liveGameOrchestrator.startLiveGame() above
+            // Removed duplicate WebSocket notification to avoid double messaging
+
+            log.debug("Game started and initialized: game {}", game.getId());
+
             return ApiResponse.newBuilder()
                     .status(200)
                     .message("Game started successfully")
@@ -1250,5 +1434,259 @@ public class GameServiceImpl implements GameService {
                 .build();
     }
 
+    // Redis Helper Methods
+
+    /**
+     * Initialize Redis game state and lobby for multiplayer games
+     */
+    private void initializeRedisGameState(Game game, Long userId) {
+        try {
+            if (game.getMaxPlayers() > 1) {
+                // Initialize game state in Redis
+                GameStateRepository.GameState gameState = new GameStateRepository.GameState();
+                gameState.setGameId(game.getId());
+                gameState.setStatus("WAITING");
+                gameState.setCurrentQuestionIndex(0);
+                gameState.setTotalQuestions(0); // Will be set when game starts
+                gameStateRepository.saveGameState(game.getId(), gameState);
+                
+                // Add host to lobby
+                gameStateRepository.addPlayerToLobby(game.getId(), userId.toString());
+                log.debug("Initialized Redis state for multiplayer game {}", game.getId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to initialize Redis state for game {}: {}", game.getId(), e.getMessage(), e);
+            // Continue without Redis - fallback to database only
+        }
+    }
+
+    /**
+     * Update player ready status in Redis with proper error handling
+     */
+    private void updatePlayerReadyStatusInRedis(Game game, Long userId, Boolean ready) {
+        try {
+            if (game.getMaxPlayers() > 1) {
+                gameStateRepository.setPlayerReady(game.getId(), userId.toString(), ready);
+                log.debug("Set player {} ready status to {} in Redis for game {}", userId, ready, game.getId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to set player {} ready status in Redis for game {}: {}", userId, game.getId(), e.getMessage(), e);
+            // Continue without Redis - database state will be correct
+        }
+    }
+
+    /**
+     * Add player to Redis lobby with proper error handling
+     */
+    private void addPlayerToRedisLobby(Long gameId, Long userId) {
+        try {
+            gameStateRepository.addPlayerToLobby(gameId, userId.toString());
+            // Set player as not ready initially
+            gameStateRepository.setPlayerReady(gameId, userId.toString(), false);
+            log.debug("Added player {} to Redis lobby for game {}", userId, gameId);
+        } catch (Exception e) {
+            log.error("Failed to add player {} to Redis lobby for game {}: {}", userId, gameId, e.getMessage(), e);
+            // Continue without Redis - fallback to database only
+        }
+    }
+
+    /**
+     * Remove player from Redis lobby with proper error handling
+     */
+    private void removePlayerFromRedisLobby(Long gameId, Long userId) {
+        try {
+            gameStateRepository.removePlayerFromLobby(gameId, userId.toString());
+            gameStateRepository.setPlayerReady(gameId, userId.toString(), false);
+            log.debug("Removed player {} from Redis lobby for game {}", userId, gameId);
+        } catch (Exception e) {
+            log.error("Failed to remove player {} from Redis lobby for game {}: {}", userId, gameId, e.getMessage(), e);
+            // Continue without Redis - database state will be correct
+        }
+    }
+
+    /**
+     * Update Redis game state for answer submission with comprehensive error handling
+     */
+    private void updateRedisGameStateForAnswer(Game game, Long userId, int totalQuestionScore) {
+        try {
+            GameStateRepository.GameState gameState = gameStateRepository.getGameState(game.getId());
+            if (gameState != null) {
+                // Update player score in Redis
+                gameState.addPlayerScore(userId.toString(), totalQuestionScore);
+                
+                // Update current question index
+                gameState.setCurrentQuestionIndex(game.getQuestionsAnswered());
+                
+                // Set next question if available
+                List<GameQuestion> unansweredQuestions = game.getGameQuestions().stream()
+                        .filter(gq -> !gq.hasBeenAnswered())
+                        .sorted((a, b) -> a.getQuestionOrder().compareTo(b.getQuestionOrder()))
+                        .toList();
+                
+                if (!unansweredQuestions.isEmpty()) {
+                    gameState.setCurrentQuestionId(unansweredQuestions.getFirst().getQuestion().getId());
+                    gameState.setQuestionStartTime(LocalDateTime.now());
+                } else {
+                    gameState.setCurrentQuestionId(null);
+                    gameState.setQuestionStartTime(null);
+                }
+                
+                gameState.updateActivity();
+                gameStateRepository.saveGameState(game.getId(), gameState);
+                log.debug("Updated Redis game state for answer submission in game {}", game.getId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to update Redis game state for answer submission in game {}: {}", game.getId(), e.getMessage(), e);
+            // Continue without Redis - database state is consistent
+        }
+    }
+
+    /**
+     * Initialize Redis game state when game starts with all players and questions
+     */
+    private void initializeRedisGameStateForStart(Game game, List<GameQuestion> gameQuestions) {
+        try {
+            GameStateRepository.GameState gameState = gameStateRepository.getGameState(game.getId());
+            if (gameState == null) {
+                // Create new game state if not exists (for single player or fallback)
+                gameState = new GameStateRepository.GameState();
+                gameState.setGameId(game.getId());
+            }
+            gameState.setStatus("IN_PROGRESS");
+            gameState.setCurrentQuestionIndex(0);
+            gameState.setTotalQuestions(gameQuestions.size());
+            gameState.setGameStartTime(game.getStartedAt());
+            if (!gameQuestions.isEmpty()) {
+                gameState.setCurrentQuestionId(gameQuestions.get(0).getQuestion().getId());
+                gameState.setQuestionStartTime(game.getStartedAt());
+            }
+            gameState.updateActivity();
+            
+            // Initialize player scores in Redis
+            List<GamePlayer> players = gamePlayerRepository.findByGameIdAndLeftAtIsNull(game.getId());
+            for (GamePlayer player : players) {
+                gameState.addPlayerScore(player.getUser().getId().toString(), 0);
+            }
+            
+            gameStateRepository.saveGameState(game.getId(), gameState);
+            log.debug("Updated Redis game state for started game {}", game.getId());
+        } catch (Exception e) {
+            log.error("Failed to update Redis game state for started game {}: {}", game.getId(), e.getMessage(), e);
+            // Continue without Redis - game will work with database only
+        }
+    }
+
+    /**
+     * Finalize game in Redis: mark as completed, update leaderboards, and cleanup
+     */
+    private void finalizeGameInRedis(Game game) {
+        // Update Redis game state to completed before clearing
+        try {
+            GameStateRepository.GameState gameState = gameStateRepository.getGameState(game.getId());
+            if (gameState != null) {
+                gameState.setStatus("COMPLETED");
+                gameState.updateActivity();
+                gameStateRepository.saveGameState(game.getId(), gameState);
+                log.debug("Marked game {} as completed in Redis", game.getId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to mark game {} as completed in Redis: {}", game.getId(), e.getMessage(), e);
+        }
+        
+        // Update leaderboards based on game type
+        if (isPublicGame(game)) {
+            // Public game: Update global leaderboards
+            try {
+                redisLeaderboardService.addScore(game.getUser().getId().toString(), game.getScore());
+                log.debug("Updated global leaderboards for user {} with score {} (public game)", game.getUser().getId(), game.getScore());
+            } catch (Exception e) {
+                log.error("Failed to update global leaderboards for user {}: {}", game.getUser().getId(), e.getMessage(), e);
+            }
+        } else {
+            // Private game: Update private game leaderboard only
+            try {
+                redisLeaderboardService.addPrivateGameScore(game.getId(), game.getUser().getId().toString(), game.getScore());
+                log.debug("Updated private game leaderboard for user {} with score {} (private game {})", 
+                         game.getUser().getId(), game.getScore(), game.getId());
+            } catch (Exception e) {
+                log.error("Failed to update private game leaderboard for user {}: {}", game.getUser().getId(), e.getMessage(), e);
+            }
+        }
+        
+        log.debug("Game completion logged for game {}", game.getId());
+
+        // Clear Redis game data after updating leaderboards
+        try {
+            gameStateRepository.clearAllGameData(game.getId());
+            
+            // Also clear private game leaderboard if it's a private game
+            if (isPrivateGame(game)) {
+                redisLeaderboardService.clearPrivateGameLeaderboard(game.getId());
+            }
+            
+            log.debug("Cleared Redis data for completed game {}", game.getId());
+        } catch (Exception e) {
+            log.error("Failed to clear Redis data for completed game {}: {}", game.getId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Determines if a game is public (should affect global leaderboards)
+     * Public games: No invite code AND multiplayer games for competitive play
+     * Private games: Have invite code OR single-player practice games
+     */
+    private boolean isPublicGame(Game game) {
+        // Games with invite codes are always private (friends/family games)
+        if (game.getInviteCode() != null && !game.getInviteCode().trim().isEmpty()) {
+            return false;
+        }
+        
+        // Single-player games are considered practice/private
+        if (game.getMaxPlayers() == 1) {
+            return false;
+        }
+        
+        // Multiplayer games without invite codes are public competitive games
+        return true;
+    }
+
+    /**
+     * Determines if a game is private (friends/family casual games)
+     */
+    private boolean isPrivateGame(Game game) {
+        return !isPublicGame(game);
+    }
+
+    /**
+     * Calculate final score with completion and accuracy bonuses for single-player games
+     */
+    private void calculateSinglePlayerFinalScore(Game game) {
+        try {
+            int completionBonus = scoreService.calculateGameCompletionBonus(
+                    game.getCorrectAnswers(),
+                    game.getGameQuestions().size(),
+                    game.getDurationSeconds() != null ? game.getDurationSeconds() : 0
+            );
+
+            double accuracyBonus = scoreService.calculateAccuracyBonus(
+                    game.getCorrectAnswers(),
+                    game.getQuestionsAnswered()
+            );
+
+            int finalScore = scoreService.calculateFinalGameScore(
+                    game.getScore(),
+                    completionBonus,
+                    accuracyBonus
+            );
+
+            game.setScore(finalScore);
+            
+            log.debug("Single-player final score calculated: gameId={}, baseScore={}, completionBonus={}, accuracyBonus={}, finalScore={}", 
+                     game.getId(), game.getScore() - completionBonus - (int)accuracyBonus, completionBonus, accuracyBonus, finalScore);
+        } catch (Exception e) {
+            log.error("Failed to calculate single-player final score for game {}: {}", game.getId(), e.getMessage(), e);
+            // Don't throw exception to avoid breaking the game end flow
+        }
+    }
 
 }

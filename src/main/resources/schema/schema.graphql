@@ -4,8 +4,14 @@ type Query {
   health: String!
 }
 
-# Root Mutation type - extended by other schema files  
+# Root Mutation type - extended by other schema files
 type Mutation {
   # Placeholder - actual mutations defined in domain-specific schema files
+  _placeholder: String
+}
+
+# Root Subscription type - extended by other schema files
+type Subscription {
+  # Placeholder - actual subscriptions defined in domain-specific schema files
   _placeholder: String
 }
