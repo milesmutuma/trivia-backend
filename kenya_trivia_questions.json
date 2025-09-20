@@ -1,0 +1,250 @@
+{
+  "categories": [
+    {
+      "name": "History & Independence",
+      "questions": [
+        {
+          "question": "When did Kenya gain independence from British colonial rule?",
+          "answers": ["December 12, 1963", "January 1, 1960", "June 1, 1965", "October 20, 1964"],
+          "correctAnswer": "December 12, 1963",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "Who was Kenya's first President?",
+          "answers": ["Jomo Kenyatta", "Daniel arap Moi", "Mwai Kibaki", "Uhuru Kenyatta"],
+          "correctAnswer": "Jomo Kenyatta",
+          "difficulty": "EASY"
+        },
+        {
+          "question": "What does the Swahili backronym for Mau Mau mean?",
+          "answers": ["Let the foreigner go back abroad, let the African regain independence", "Freedom fighters of Kenya", "Land and freedom army", "United for independence"],
+          "correctAnswer": "Let the foreigner go back abroad, let the African regain independence",
+          "difficulty": "HARD"
+        },
+        {
+          "question": "Who was the Field Marshal of the Mau Mau whose capture in 1956 signaled the defeat of the uprising?",
+          "answers": ["Dedan Kimathi", "Jomo Kenyatta", "Tom Mboya", "Oginga Odinga"],
+          "correctAnswer": "Dedan Kimathi",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "Between which years did the Mau Mau uprising take place?",
+          "answers": ["1952-1960", "1948-1955", "1960-1963", "1945-1950"],
+          "correctAnswer": "1952-1960",
+          "difficulty": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "name": "Geography",
+      "questions": [
+        {
+          "question": "What is the second-highest mountain in Africa located in Kenya?",
+          "answers": ["Mount Kenya", "Mount Kilimanjaro", "Mount Elgon", "Aberdare Ranges"],
+          "correctAnswer": "Mount Kenya",
+          "difficulty": "EASY"
+        },
+        {
+          "question": "Which is the largest desert lake in the world found in Kenya?",
+          "answers": ["Lake Turkana", "Lake Victoria", "Lake Naivasha", "Lake Nakuru"],
+          "correctAnswer": "Lake Turkana",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "Which Kenyan lake is famous for its flamingos?",
+          "answers": ["Lake Nakuru", "Lake Naivasha", "Lake Baringo", "Lake Magadi"],
+          "correctAnswer": "Lake Nakuru",
+          "difficulty": "EASY"
+        },
+        {
+          "question": "What does 'Nairobi' mean in the Maasai language?",
+          "answers": ["Place of cool waters", "Green city", "Capital city", "Meeting place"],
+          "correctAnswer": "Place of cool waters",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "Which is the longest river in Kenya?",
+          "answers": ["Tana River", "Athi River", "Nzoia River", "Yala River"],
+          "correctAnswer": "Tana River",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "How many lakes are in the Kenyan Rift Valley?",
+          "answers": ["8", "6", "10", "12"],
+          "correctAnswer": "8",
+          "difficulty": "HARD"
+        }
+      ]
+    },
+    {
+      "name": "Culture & Food",
+      "questions": [
+        {
+          "question": "What is Kenya's unofficial national dish?",
+          "answers": ["Nyama Choma", "Ugali", "Pilau", "Chapati"],
+          "correctAnswer": "Nyama Choma",
+          "difficulty": "EASY"
+        },
+        {
+          "question": "What does 'Ugali' primarily consist of?",
+          "answers": ["Maize flour", "Wheat flour", "Rice", "Cassava"],
+          "correctAnswer": "Maize flour",
+          "difficulty": "EASY"
+        },
+        {
+          "question": "What does 'Sukuma Wiki' literally mean in Swahili?",
+          "answers": ["Push the week", "Green vegetables", "Daily meal", "Cheap food"],
+          "correctAnswer": "Push the week",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "What are the two official languages of Kenya?",
+          "answers": ["Swahili and English", "English and Kikuyu", "Swahili and Luo", "English and Kalenjin"],
+          "correctAnswer": "Swahili and English",
+          "difficulty": "EASY"
+        },
+        {
+          "question": "What is the traditional fermented milk drink of the Kalenjin people?",
+          "answers": ["Mursik", "Busaa", "Muratina", "Chang'aa"],
+          "correctAnswer": "Mursik",
+          "difficulty": "HARD"
+        },
+        {
+          "question": "What does 'Harambee' mean in Swahili?",
+          "answers": ["Let's pull together", "Freedom", "Unity", "Progress"],
+          "correctAnswer": "Let's pull together",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "What is the name of the traditional Maasai shawl?",
+          "answers": ["Shuka", "Kanga", "Kitenge", "Lesso"],
+          "correctAnswer": "Shuka",
+          "difficulty": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "name": "Sports & Athletics",
+      "questions": [
+        {
+          "question": "Who was Kenya's first Olympic gold medalist in 1968?",
+          "answers": ["Naftali Temu", "Kipchoge Keino", "Henry Rono", "Wilson Kiprugut"],
+          "correctAnswer": "Naftali Temu",
+          "difficulty": "HARD"
+        },
+        {
+          "question": "Which Kenyan broke the marathon world record in 2011 with a time of 2:03:38?",
+          "answers": ["Patrick Makau", "Eliud Kipchoge", "Wilson Kipsang", "Dennis Kimetto"],
+          "correctAnswer": "Patrick Makau",
+          "difficulty": "HARD"
+        },
+        {
+          "question": "What is the nickname of Kenya's national football team?",
+          "answers": ["Harambee Stars", "Safari Stars", "Kenya Warriors", "The Lions"],
+          "correctAnswer": "Harambee Stars",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "What is the nickname of Kenya's national rugby sevens team?",
+          "answers": ["Shujaa", "Simba", "Warriors", "Safari Sevens"],
+          "correctAnswer": "Shujaa",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "Which annual rugby tournament is held in Nairobi?",
+          "answers": ["Safari Sevens", "Kenya Cup", "Tusker Cup", "Nairobi Sevens"],
+          "correctAnswer": "Safari Sevens",
+          "difficulty": "EASY"
+        },
+        {
+          "question": "Which Kenyan ethnic group is world-famous for producing Olympic champion runners?",
+          "answers": ["Kalenjin", "Kikuyu", "Luo", "Maasai"],
+          "correctAnswer": "Kalenjin",
+          "difficulty": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "name": "Wildlife & Conservation",
+      "questions": [
+        {
+          "question": "What are the 'Big Five' animals in Kenya?",
+          "answers": ["Lion, Leopard, Elephant, Buffalo, Rhino", "Lion, Cheetah, Elephant, Giraffe, Rhino", "Lion, Leopard, Cheetah, Elephant, Buffalo", "Elephant, Giraffe, Zebra, Lion, Rhino"],
+          "correctAnswer": "Lion, Leopard, Elephant, Buffalo, Rhino",
+          "difficulty": "EASY"
+        },
+        {
+          "question": "What does 'Mara' mean in the Maasai language?",
+          "answers": ["Spotted", "Great", "Wide", "Plains"],
+          "correctAnswer": "Spotted",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "Approximately how many wildebeest participate in the Great Migration?",
+          "answers": ["1.2 million", "500,000", "2 million", "800,000"],
+          "correctAnswer": "1.2 million",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "Which is the national bird of Kenya?",
+          "answers": ["Lilac-breasted roller", "Secretary bird", "African fish eagle", "Crowned crane"],
+          "correctAnswer": "Lilac-breasted roller",
+          "difficulty": "HARD"
+        },
+        {
+          "question": "How many bird species have been identified in the Maasai Mara?",
+          "answers": ["Over 500", "About 300", "Around 400", "Nearly 700"],
+          "correctAnswer": "Over 500",
+          "difficulty": "HARD"
+        },
+        {
+          "question": "What is the area of the Maasai Mara National Reserve in square kilometers?",
+          "answers": ["1,510", "2,000", "1,000", "3,000"],
+          "correctAnswer": "1,510",
+          "difficulty": "HARD"
+        },
+        {
+          "question": "Which animal can consume up to 300 pounds of food per day?",
+          "answers": ["African Elephant", "Hippopotamus", "Giraffe", "Buffalo"],
+          "correctAnswer": "African Elephant",
+          "difficulty": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "name": "Modern Kenya",
+      "questions": [
+        {
+          "question": "What is the capital city of Kenya?",
+          "answers": ["Nairobi", "Mombasa", "Kisumu", "Nakuru"],
+          "correctAnswer": "Nairobi",
+          "difficulty": "EASY"
+        },
+        {
+          "question": "Which body of water borders Kenya to the east?",
+          "answers": ["Indian Ocean", "Atlantic Ocean", "Red Sea", "Mediterranean Sea"],
+          "correctAnswer": "Indian Ocean",
+          "difficulty": "EASY"
+        },
+        {
+          "question": "Approximately how many ethnic groups are there in Kenya?",
+          "answers": ["Over 40", "About 20", "Around 30", "Nearly 60"],
+          "correctAnswer": "Over 40",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "When did Kenya become a republic?",
+          "answers": ["1964", "1963", "1965", "1962"],
+          "correctAnswer": "1964",
+          "difficulty": "MEDIUM"
+        },
+        {
+          "question": "What year did the British government pay compensation to Mau Mau torture victims?",
+          "answers": ["2013", "2010", "2015", "2008"],
+          "correctAnswer": "2013",
+          "difficulty": "HARD"
+        }
+      ]
+    }
+  ]
+}
